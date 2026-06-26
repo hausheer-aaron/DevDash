@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(pnpm --version)",
+      "Bash(\"/mnt/c/Program Files/nodejs/node.exe\" --version)",
+      "Bash(\"/mnt/c/Program Files/nodejs/npm.cmd\" --version)",
+      "Read(//mnt/c/Program Files/nodejs/**)"
+    ]
+  }
+}

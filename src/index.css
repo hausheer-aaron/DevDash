@@ -1,0 +1,297 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Design tokens
+   Colors are stored as space-separated RGB channels so Tailwind's
+   `<alpha-value>` syntax (e.g. bg-accent/20) works everywhere.
+   ───────────────────────────────────────────────────────────────────────── */
+@layer base {
+  :root,
+  .dark {
+    --bg: 9 9 11; /* near-black canvas */
+    --bg-subtle: 13 13 16;
+    --surface: 18 18 22;
+    --surface-hover: 24 24 29;
+    --elevated: 26 26 32;
+    --border: 38 38 45;
+    --border-strong: 55 55 64;
+    --fg: 244 244 246;
+    --muted: 161 161 170;
+    --faint: 113 113 122;
+    --accent: 129 140 248; /* indigo-400 */
+    --accent-fg: 12 12 16;
+    --accent-muted: 99 102 241;
+    --success: 52 211 153;
+    --warning: 251 191 36;
+    --danger: 248 113 113;
+    --info: 96 165 250;
+    color-scheme: dark;
+  }
+
+  .light {
+    --bg: 250 250 251;
+    --bg-subtle: 244 244 246;
+    --surface: 255 255 255;
+    --surface-hover: 245 245 247;
+    --elevated: 255 255 255;
+    --border: 228 228 233;
+    --border-strong: 212 212 219;
+    --fg: 24 24 27;
+    --muted: 82 82 91;
+    --faint: 113 113 122;
+    --accent: 79 70 229; /* indigo-600 */
+    --accent-fg: 255 255 255;
+    --accent-muted: 99 102 241;
+    --success: 5 150 105;
+    --warning: 217 119 6;
+    --danger: 220 38 38;
+    --info: 37 99 235;
+    color-scheme: light;
+  }
+
+  * {
+    border-color: rgb(var(--border));
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scrollbar-gutter: stable;
+  }
+
+  body {
+    @apply bg-bg text-fg font-sans antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+    font-variation-settings: 'opsz' 32;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Subtle ambient gradient on the app canvas. */
+  #root {
+    min-height: 100vh;
+    background-image:
+      radial-gradient(60rem 40rem at 75% -10%, rgb(var(--accent) / 0.06), transparent 60%),
+      radial-gradient(50rem 40rem at 0% 0%, rgb(var(--accent-muted) / 0.05), transparent 55%);
+  }
+
+  ::selection {
+    background: rgb(var(--accent) / 0.3);
+    color: rgb(var(--fg));
+  }
+
+  :focus-visible {
+    outline: 2px solid rgb(var(--accent) / 0.7);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+/* ── Scrollbars ─────────────────────────────────────────────────────────── */
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--border-strong)) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: rgb(var(--border-strong));
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(var(--faint));
+    background-clip: content-box;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Frosted-glass surface used by overlays and the topbar. */
+  .glass {
+    background-color: rgb(var(--surface) / 0.7);
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .bg-grid {
+    background-size: 32px 32px;
+    background-image:
+      linear-gradient(to right, rgb(var(--border) / 0.5) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(var(--border) / 0.5) 1px, transparent 1px);
+  }
+}
+
+/* ── Markdown / prose ───────────────────────────────────────────────────── */
+@layer components {
+  .prose-dash {
+    @apply text-[0.925rem] leading-relaxed text-fg/90;
+  }
+  .prose-dash > * + * {
+    @apply mt-4;
+  }
+  .prose-dash h1 {
+    @apply mt-6 text-2xl font-semibold tracking-tight text-fg;
+  }
+  .prose-dash h2 {
+    @apply mt-6 border-b border-border pb-1.5 text-xl font-semibold tracking-tight text-fg;
+  }
+  .prose-dash h3 {
+    @apply mt-5 text-lg font-semibold text-fg;
+  }
+  .prose-dash h4 {
+    @apply mt-4 text-base font-semibold text-fg;
+  }
+  .prose-dash p {
+    @apply text-fg/85;
+  }
+  .prose-dash a {
+    @apply font-medium text-accent underline decoration-accent/30 underline-offset-2 transition hover:decoration-accent;
+  }
+  .prose-dash strong {
+    @apply font-semibold text-fg;
+  }
+  .prose-dash ul {
+    @apply list-disc space-y-1.5 pl-5 marker:text-faint;
+  }
+  .prose-dash ol {
+    @apply list-decimal space-y-1.5 pl-5 marker:text-faint;
+  }
+  .prose-dash li {
+    @apply text-fg/85;
+  }
+  .prose-dash li > ul,
+  .prose-dash li > ol {
+    @apply mt-1.5;
+  }
+  .prose-dash blockquote {
+    @apply border-l-2 border-accent/40 pl-4 italic text-muted;
+  }
+  .prose-dash hr {
+    @apply my-6 border-border;
+  }
+  .prose-dash code {
+    @apply rounded-md border border-border bg-bg-subtle px-1.5 py-0.5 font-mono text-[0.82em] text-fg;
+  }
+  .prose-dash pre {
+    @apply overflow-x-auto rounded-xl border border-border bg-[#0c0c10] p-4 text-[0.82rem] leading-relaxed;
+  }
+  .prose-dash pre code {
+    @apply border-0 bg-transparent p-0 text-[0.82rem] text-fg/90;
+  }
+  .prose-dash table {
+    @apply w-full border-collapse overflow-hidden rounded-lg text-sm;
+  }
+  .prose-dash th {
+    @apply border border-border bg-surface px-3 py-2 text-left font-semibold;
+  }
+  .prose-dash td {
+    @apply border border-border px-3 py-2;
+  }
+  .prose-dash img {
+    @apply rounded-lg border border-border;
+  }
+  .prose-dash input[type='checkbox'] {
+    @apply mr-1 accent-accent;
+  }
+}
+
+/* ── highlight.js — calm, Linear/GitHub-dark inspired syntax theme ───────── */
+.hljs {
+  color: rgb(var(--fg) / 0.9);
+  background: transparent;
+}
+.hljs-comment,
+.hljs-quote {
+  color: #6b7280;
+  font-style: italic;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-built_in,
+.hljs-name,
+.hljs-tag {
+  color: #c4b5fd;
+}
+.hljs-string,
+.hljs-title,
+.hljs-section,
+.hljs-attribute,
+.hljs-literal,
+.hljs-template-tag,
+.hljs-template-variable,
+.hljs-type,
+.hljs-addition {
+  color: #86efac;
+}
+.hljs-meta,
+.hljs-link {
+  color: #93c5fd;
+}
+.hljs-attr {
+  color: #fcd34d;
+}
+.hljs-symbol,
+.hljs-bullet,
+.hljs-subst,
+.hljs-meta .hljs-keyword,
+.hljs-selector-attr,
+.hljs-selector-pseudo {
+  color: #f9a8d4;
+}
+.hljs-number,
+.hljs-variable,
+.hljs-params {
+  color: #fdba74;
+}
+.hljs-function .hljs-title,
+.hljs-title.function_ {
+  color: #93c5fd;
+}
+.hljs-deletion {
+  color: #fca5a5;
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 600;
+}
+
+/* Respect reduced-motion preferences globally — both the OS setting and the
+   in-app toggle (which adds `.motion-reduce` to <html>). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+html.motion-reduce *,
+html.motion-reduce *::before,
+html.motion-reduce *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
