@@ -14,7 +14,7 @@ export function NotFoundPage() {
           title="Page not found"
           description="The page you're looking for doesn't exist or has moved."
           action={
-            <Button variant="primary" onClick={() => navigate('/')}>
+            <Button variant="primary" onClick={() => navigate('/dashboard')}>
               Back to dashboard
             </Button>
           }

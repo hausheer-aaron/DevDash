@@ -32,7 +32,7 @@ export function useGlobalShortcuts() {
       const pending = chord.current
       if (pending && Date.now() - pending.at < 1200 && pending.key === 'g') {
         const dest: Record<string, string> = {
-          h: '/',
+          h: '/dashboard',
           p: '/projects',
           s: '/snippets',
           c: '/commands',

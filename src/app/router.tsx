@@ -1,5 +1,6 @@
 import { createBrowserRouter } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
+import { IndexRedirect } from '@/app/IndexRedirect'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { ProjectsPage } from '@/pages/ProjectsPage'
 import { ProjectDetailPage } from '@/pages/ProjectDetailPage'
@@ -14,7 +15,8 @@ export const router = createBrowserRouter([
     path: '/',
     element: <AppShell />,
     children: [
-      { index: true, element: <DashboardPage /> },
+      { index: true, element: <IndexRedirect /> },
+      { path: 'dashboard', element: <DashboardPage /> },
       { path: 'projects', element: <ProjectsPage /> },
       { path: 'projects/:projectId', element: <ProjectDetailPage /> },
       { path: 'snippets', element: <SnippetsPage /> },

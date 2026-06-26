@@ -22,7 +22,6 @@ export const DEFAULT_SETTINGS: Settings = {
   accent: 'indigo',
   defaultView: 'dashboard',
   reduceMotion: false,
-  compactMode: false,
   showCompletedTasks: true,
 }
 

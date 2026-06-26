@@ -225,7 +225,7 @@ export function CommandPalette() {
                       heading="Navigate"
                       className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[0.6875rem] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide [&_[cmdk-group-heading]]:text-faint"
                     >
-                      <NavItem icon={LayoutDashboard} label="Dashboard" onSelect={() => run(() => navigate('/'))} />
+                      <NavItem icon={LayoutDashboard} label="Dashboard" onSelect={() => run(() => navigate('/dashboard'))} />
                       <NavItem icon={FolderKanban} label="Projects" onSelect={() => run(() => navigate('/projects'))} />
                       <NavItem icon={Code2} label="Snippets" onSelect={() => run(() => navigate('/snippets'))} />
                       <NavItem icon={TerminalSquare} label="Commands" onSelect={() => run(() => navigate('/commands'))} />

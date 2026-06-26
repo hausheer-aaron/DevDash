@@ -17,7 +17,7 @@ import { ProjectAvatar } from '@/components/projects/ProjectAvatar'
 import { cn } from '@/lib/utils'
 
 const NAV = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/projects', label: 'Projects', icon: FolderKanban, end: false },
   { to: '/snippets', label: 'Snippets', icon: Code2, end: false },
   { to: '/commands', label: 'Commands', icon: TerminalSquare, end: false },

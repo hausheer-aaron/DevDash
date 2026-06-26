@@ -119,10 +119,10 @@ export type ThemeMode = 'dark' | 'light' | 'system'
 export interface Settings {
   theme: ThemeMode
   accent: string
-  /** Default landing view used by the "go home" shortcut. */
+  /** View the index route ("/") redirects to on initial load. */
   defaultView: 'dashboard' | 'projects'
   reduceMotion: boolean
-  compactMode: boolean
+  /** When false, the Done column is hidden on Kanban boards. */
   showCompletedTasks: boolean
 }
 

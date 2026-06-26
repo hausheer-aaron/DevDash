@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { X } from 'lucide-react'
@@ -33,20 +33,69 @@ export function Modal({
   size = 'md',
   hideClose,
 }: ModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const titleId = useId()
+
   useEffect(() => {
     if (!open) return
+
+    const previouslyFocused = document.activeElement as HTMLElement | null
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    const getFocusable = () =>
+      Array.from(
+        dialogRef.current?.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      ).filter((el) => el.offsetParent !== null)
+
+    // Move focus into the dialog — unless an autoFocus element already has it.
+    const raf = requestAnimationFrame(() => {
+      const node = dialogRef.current
+      if (node && !node.contains(document.activeElement)) {
+        const focusables = getFocusable()
+        ;(focusables[0] ?? node).focus()
+      }
+    })
+
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation()
         onClose()
+        return
+      }
+      if (e.key !== 'Tab') return
+      const node = dialogRef.current
+      if (!node) return
+      const focusables = getFocusable()
+      if (focusables.length === 0) {
+        e.preventDefault()
+        node.focus()
+        return
+      }
+      const first = focusables[0]
+      const last = focusables[focusables.length - 1]
+      const active = document.activeElement
+      // Wrap focus at the boundaries so Tab never escapes the dialog.
+      if (e.shiftKey) {
+        if (active === first || !node.contains(active)) {
+          e.preventDefault()
+          last.focus()
+        }
+      } else if (active === last || !node.contains(active)) {
+        e.preventDefault()
+        first.focus()
       }
     }
+
     document.addEventListener('keydown', onKey)
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
     return () => {
+      cancelAnimationFrame(raf)
       document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = prev
+      document.body.style.overflow = prevOverflow
+      // Restore focus to whatever was focused before the dialog opened.
+      previouslyFocused?.focus?.()
     }
   }, [open, onClose])
 
@@ -63,10 +112,13 @@ export function Modal({
             onClick={onClose}
           />
           <motion.div
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
+            aria-labelledby={title ? titleId : undefined}
+            tabIndex={-1}
             className={cn(
-              'relative z-10 my-auto w-full rounded-2xl border border-border bg-elevated shadow-elevated',
+              'relative z-10 my-auto w-full rounded-2xl border border-border bg-elevated shadow-elevated outline-none',
               SIZES[size],
             )}
             initial={{ opacity: 0, scale: 0.97, y: 8 }}
@@ -78,7 +130,9 @@ export function Modal({
               <div className="flex items-start justify-between gap-4 px-5 pt-5">
                 <div className="min-w-0">
                   {title && (
-                    <h2 className="text-base font-semibold tracking-tight text-fg">{title}</h2>
+                    <h2 id={titleId} className="text-base font-semibold tracking-tight text-fg">
+                      {title}
+                    </h2>
                   )}
                   {description && <p className="mt-1 text-sm text-muted">{description}</p>}
                 </div>

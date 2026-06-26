@@ -34,7 +34,14 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
   const tasks = useProjectTasks(projectId)
   const reorderTasks = useStore((s) => s.reorderTasks)
   const deleteTask = useStore((s) => s.deleteTask)
+  const showCompleted = useStore((s) => s.settings.showCompletedTasks)
   const confirm = useConfirm()
+
+  // The Done column is hidden when "show completed tasks" is off. Hidden tasks
+  // stay in state (and keep their order) — they reappear when re-enabled.
+  const visibleStatuses = showCompleted
+    ? TASK_STATUSES
+    : TASK_STATUSES.filter((s) => s !== 'done')
 
   const [columns, setColumns] = useState<Columns>(() => groupByStatus(tasks))
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -149,7 +156,7 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
         onDragCancel={() => setActiveId(null)}
       >
         <div className="scrollbar-thin flex gap-4 overflow-x-auto pb-2">
-          {TASK_STATUSES.map((status) => (
+          {visibleStatuses.map((status) => (
             <KanbanColumn
               key={status}
               status={status}

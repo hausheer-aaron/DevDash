@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, Search, FileText, Pin, Trash2, Eye, PenLine } from 'lucide-react'
 import { useStore } from '@/store/store'
 import { useConfirm } from '@/components/ui/Confirm'
@@ -8,6 +8,9 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { Markdown } from '@/components/ui/Markdown'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { cn, timeAgo, truncate } from '@/lib/utils'
+
+/** Idle delay before an edited note is committed to the store. */
+const AUTOSAVE_MS = 600
 
 export function NotesView({ projectId }: { projectId: string }) {
   const notes = useStore((s) => s.notes)
@@ -20,23 +23,53 @@ export function NotesView({ projectId }: { projectId: string }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [mode, setMode] = useState<'write' | 'preview'>('write')
 
-  const projectNotes = useMemo(
-    () =>
-      notes
-        .filter((n) => n.projectId === projectId)
-        .sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt),
-    [notes, projectId],
-  )
+  // Local editor draft + dirty flag. We commit to the store on a debounce
+  // (and on flush) instead of on every keystroke, so we don't re-serialize the
+  // whole store or resort the list per character.
+  const [draft, setDraft] = useState({ title: '', content: '' })
+  const [dirty, setDirty] = useState(false)
+  // The selected note is sorted by its updatedAt *at selection time* so that
+  // saving (which bumps updatedAt) doesn't make it jump in the list mid-edit.
+  const [frozenSort, setFrozenSort] = useState<{ id: string; at: number } | null>(null)
+
+  // Refs let the flush/debounce read the latest values without re-subscribing.
+  const notesRef = useRef(notes)
+  notesRef.current = notes
+  const draftRef = useRef(draft)
+  draftRef.current = draft
+  const dirtyRef = useRef(dirty)
+  dirtyRef.current = dirty
+  const selectedIdRef = useRef(selectedId)
+  selectedIdRef.current = selectedId
+
+  const projectNotes = useMemo(() => {
+    const sortAt = (n: { id: string; updatedAt: number }) =>
+      frozenSort && n.id === frozenSort.id ? frozenSort.at : n.updatedAt
+    return notes
+      .filter((n) => n.projectId === projectId)
+      .sort((a, b) => Number(b.pinned) - Number(a.pinned) || sortAt(b) - sortAt(a))
+  }, [notes, projectId, frozenSort])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return projectNotes
-    return projectNotes.filter((n) =>
-      `${n.title} ${n.content}`.toLowerCase().includes(q),
-    )
+    return projectNotes.filter((n) => `${n.title} ${n.content}`.toLowerCase().includes(q))
   }, [projectNotes, query])
 
-  // Keep a valid selection.
+  const selected = projectNotes.find((n) => n.id === selectedId) ?? null
+
+  // Commit any pending edit immediately (on note switch and on unmount).
+  const flush = useCallback(() => {
+    if (dirtyRef.current && selectedIdRef.current) {
+      updateNote(selectedIdRef.current, {
+        title: draftRef.current.title,
+        content: draftRef.current.content,
+      })
+      dirtyRef.current = false
+    }
+  }, [updateNote])
+
+  // Keep a valid selection (first note, or none).
   useEffect(() => {
     if (projectNotes.length === 0) {
       setSelectedId(null)
@@ -45,12 +78,47 @@ export function NotesView({ projectId }: { projectId: string }) {
     }
   }, [projectNotes, selectedId])
 
-  const selected = projectNotes.find((n) => n.id === selectedId) ?? null
+  // Load the draft when the selected note changes (keyed on id only, so saves
+  // to the same note don't reload/reset the draft or the frozen sort key).
+  useEffect(() => {
+    const n = notesRef.current.find((x) => x.id === selectedId)
+    if (n) {
+      setDraft({ title: n.title, content: n.content })
+      setFrozenSort({ id: n.id, at: n.updatedAt })
+      setDirty(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId])
+
+  // Debounced autosave.
+  useEffect(() => {
+    if (!dirty || !selectedId) return
+    const id = setTimeout(() => {
+      updateNote(selectedId, { title: draft.title, content: draft.content })
+      setDirty(false)
+    }, AUTOSAVE_MS)
+    return () => clearTimeout(id)
+  }, [dirty, draft, selectedId, updateNote])
+
+  // Flush on unmount so in-flight edits are never lost.
+  useEffect(() => () => flush(), [flush])
+
+  const selectNote = (id: string) => {
+    if (id === selectedId) return
+    flush()
+    setSelectedId(id)
+  }
 
   const createNote = () => {
+    flush()
     const note = addNote({ projectId, title: 'Untitled note', content: '' })
     setSelectedId(note.id)
     setMode('write')
+  }
+
+  const editDraft = (patch: Partial<typeof draft>) => {
+    setDraft((d) => ({ ...d, ...patch }))
+    setDirty(true)
   }
 
   const onDelete = async (id: string, title: string) => {
@@ -60,7 +128,10 @@ export function NotesView({ projectId }: { projectId: string }) {
       confirmLabel: 'Delete',
       destructive: true,
     })
-    if (ok) deleteNote(id)
+    if (ok) {
+      dirtyRef.current = false // don't resurrect a deleted note via flush
+      deleteNote(id)
+    }
   }
 
   if (projectNotes.length === 0) {
@@ -97,29 +168,36 @@ export function NotesView({ projectId }: { projectId: string }) {
           </Button>
         </div>
         <div className="scrollbar-thin max-h-[60vh] space-y-1 overflow-y-auto lg:max-h-[calc(100vh-20rem)]">
-          {filtered.map((n) => (
-            <button
-              key={n.id}
-              onClick={() => setSelectedId(n.id)}
-              className={cn(
-                'w-full rounded-xl border px-3 py-2.5 text-left transition',
-                selectedId === n.id
-                  ? 'border-border-strong bg-surface'
-                  : 'border-transparent hover:bg-surface-hover',
-              )}
-            >
-              <div className="flex items-center gap-1.5">
-                {n.pinned && <Pin className="h-3 w-3 shrink-0 fill-warning text-warning" />}
-                <span className="truncate text-sm font-medium text-fg">
-                  {n.title || 'Untitled'}
-                </span>
-              </div>
-              <p className="mt-0.5 line-clamp-1 text-xs text-faint">
-                {n.content.replace(/[#*`>\-[\]]/g, '').trim() || 'Empty note'}
-              </p>
-              <p className="mt-1 text-[0.6875rem] text-faint">{timeAgo(n.updatedAt)}</p>
-            </button>
-          ))}
+          {filtered.map((n) => {
+            const isSelected = selectedId === n.id
+            // Show the live draft for the note being edited so the list preview
+            // reflects unsaved typing.
+            const previewTitle = isSelected ? draft.title : n.title
+            const previewBody = isSelected ? draft.content : n.content
+            return (
+              <button
+                key={n.id}
+                onClick={() => selectNote(n.id)}
+                className={cn(
+                  'w-full rounded-xl border px-3 py-2.5 text-left transition',
+                  isSelected
+                    ? 'border-border-strong bg-surface'
+                    : 'border-transparent hover:bg-surface-hover',
+                )}
+              >
+                <div className="flex items-center gap-1.5">
+                  {n.pinned && <Pin className="h-3 w-3 shrink-0 fill-warning text-warning" />}
+                  <span className="truncate text-sm font-medium text-fg">
+                    {previewTitle || 'Untitled'}
+                  </span>
+                </div>
+                <p className="mt-0.5 line-clamp-1 text-xs text-faint">
+                  {previewBody.replace(/[#*`>\-[\]]/g, '').trim() || 'Empty note'}
+                </p>
+                <p className="mt-1 text-[0.6875rem] text-faint">{timeAgo(n.updatedAt)}</p>
+              </button>
+            )
+          })}
           {filtered.length === 0 && (
             <p className="px-3 py-6 text-center text-sm text-faint">No notes match.</p>
           )}
@@ -131,8 +209,8 @@ export function NotesView({ projectId }: { projectId: string }) {
         <div className="flex flex-col rounded-2xl border border-border bg-surface/40">
           <div className="flex items-center gap-2 border-b border-border p-3">
             <Input
-              value={selected.title}
-              onChange={(e) => updateNote(selected.id, { title: e.target.value })}
+              value={draft.title}
+              onChange={(e) => editDraft({ title: e.target.value })}
               placeholder="Note title"
               className="h-9 flex-1 border-0 bg-transparent text-base font-semibold ring-0 focus:ring-0"
             />
@@ -157,7 +235,7 @@ export function NotesView({ projectId }: { projectId: string }) {
             <Button
               size="icon"
               variant="ghost"
-              onClick={() => onDelete(selected.id, selected.title)}
+              onClick={() => onDelete(selected.id, draft.title || selected.title)}
               aria-label="Delete note"
             >
               <Trash2 className="h-4 w-4" />
@@ -167,14 +245,14 @@ export function NotesView({ projectId }: { projectId: string }) {
           <div className="min-h-[40vh] flex-1 p-4">
             {mode === 'write' ? (
               <textarea
-                value={selected.content}
-                onChange={(e) => updateNote(selected.id, { content: e.target.value })}
+                value={draft.content}
+                onChange={(e) => editDraft({ content: e.target.value })}
                 placeholder="Start writing in Markdown…"
                 spellCheck
                 className="scrollbar-thin h-full min-h-[40vh] w-full resize-none bg-transparent font-mono text-sm leading-relaxed text-fg outline-none placeholder:text-faint"
               />
-            ) : selected.content.trim() ? (
-              <Markdown>{selected.content}</Markdown>
+            ) : draft.content.trim() ? (
+              <Markdown>{draft.content}</Markdown>
             ) : (
               <div className="flex h-full items-center justify-center text-sm text-faint">
                 <span className="flex items-center gap-2">
@@ -189,7 +267,16 @@ export function NotesView({ projectId }: { projectId: string }) {
               {mode === 'write' ? <PenLine className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
               Markdown supported
             </span>
-            <span>Saved · {timeAgo(selected.updatedAt)}</span>
+            <span className="flex items-center gap-1.5">
+              {dirty ? (
+                <>
+                  <span className="h-1.5 w-1.5 rounded-full bg-warning" />
+                  Unsaved…
+                </>
+              ) : (
+                <>Saved · {timeAgo(selected.updatedAt)}</>
+              )}
+            </span>
           </div>
         </div>
       )}

@@ -142,7 +142,7 @@ export function SettingsPage() {
 
         {/* Behavior */}
         <Section icon={Monitor} title="Behavior" description="Defaults and preferences.">
-          <SettingRow label="Default view" hint="Where the dashboard opens.">
+          <SettingRow label="Default view" hint="Where the app opens on launch.">
             <SegmentedControl
               value={settings.defaultView}
               onChange={(v) => updateSettings({ defaultView: v as 'dashboard' | 'projects' })}
@@ -152,7 +152,7 @@ export function SettingsPage() {
               ]}
             />
           </SettingRow>
-          <SettingRow label="Show completed tasks" hint="Include done tasks in counts and lists.">
+          <SettingRow label="Show completed tasks" hint="Show the Done column on Kanban boards.">
             <Switch
               checked={settings.showCompletedTasks}
               onChange={(v) => updateSettings({ showCompletedTasks: v })}
