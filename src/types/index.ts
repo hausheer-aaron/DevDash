@@ -10,7 +10,7 @@
  * touching existing data. `SCHEMA_VERSION` gates migrations on import/load.
  */
 
-export const SCHEMA_VERSION = 1
+export const SCHEMA_VERSION = 2
 
 export type ProjectStatus = 'planning' | 'active' | 'paused' | 'completed' | 'archived'
 export type Priority = 'low' | 'medium' | 'high' | 'urgent'
@@ -141,6 +141,10 @@ export interface ExportBundle extends DataState {
   version: number
   exportedAt: number
   settings: Settings
+}
+
+export interface ImportResult {
+  repaired: string[]
 }
 
 /** Discriminated union used by global search results. */

@@ -4,6 +4,7 @@ import type {
   Command,
   DataState,
   ExportBundle,
+  ImportResult,
   Note,
   Project,
   ProjectLink,
@@ -15,6 +16,7 @@ import type {
 import { SCHEMA_VERSION } from '@/types'
 import { STORAGE_KEY } from '@/lib/constants'
 import { createSeedData } from '@/lib/seed'
+import { assertDataIntegrity, normalizeBundle, normalizePersistedState, normalizeTaskOrders } from '@/lib/schema'
 import { deriveKey, now, uid } from '@/lib/utils'
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -86,7 +88,7 @@ interface StoreState extends DataState {
 
   // Bulk / data management
   exportBundle: () => ExportBundle
-  importBundle: (bundle: Partial<ExportBundle>, mode: 'merge' | 'replace') => void
+  importBundle: (bundle: ExportBundle, mode: 'merge' | 'replace') => ImportResult
   resetAll: () => void
   loadSeed: () => void
 }
@@ -100,6 +102,22 @@ const emptyData = (): DataState => ({
   links: [],
   resources: [],
 })
+
+function requireProject(state: DataState, projectId: string) {
+  if (!state.projects.some((p) => p.id === projectId)) {
+    throw new Error('Project not found.')
+  }
+}
+
+function requireOptionalProject(state: DataState, projectId: string | null) {
+  if (projectId !== null) requireProject(state, projectId)
+}
+
+function nextTaskOrder(state: DataState, projectId: string, status: Task['status'], excludeId?: string) {
+  return state.tasks.filter(
+    (t) => t.projectId === projectId && t.status === status && t.id !== excludeId,
+  ).length
+}
 
 export const useStore = create<StoreState>()(
   persist(
@@ -154,6 +172,7 @@ export const useStore = create<StoreState>()(
 
       /* ── Tasks ─────────────────────────────────────────────────────── */
       addTask: (input) => {
+        requireProject(get(), input.projectId)
         const ts = now()
         const siblings = get().tasks.filter(
           (t) => t.projectId === input.projectId && t.status === (input.status ?? 'todo'),
@@ -175,12 +194,30 @@ export const useStore = create<StoreState>()(
         return task
       },
       updateTask: (id, patch) =>
-        set((s) => ({
-          tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...patch, updatedAt: now() } : t)),
-        })),
+        set((s) => {
+          if (patch.projectId) requireProject(s, patch.projectId)
+          const current = s.tasks.find((t) => t.id === id)
+          const statusChanged = current && patch.status && patch.status !== current.status
+          return {
+            tasks: s.tasks.map((t) =>
+              t.id === id
+                ? {
+                    ...t,
+                    ...patch,
+                    order:
+                      statusChanged && patch.order == null
+                        ? nextTaskOrder(s, patch.projectId ?? t.projectId, patch.status!, id)
+                        : patch.order ?? t.order,
+                    updatedAt: now(),
+                  }
+                : t,
+            ),
+          }
+        }),
       deleteTask: (id) => set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) })),
       moveTask: (id, status, order) =>
-        set((s) => ({
+        set((s) => normalizeTaskOrders({
+          ...s,
           tasks: s.tasks.map((t) =>
             t.id === id ? { ...t, status, order, updatedAt: now() } : t,
           ),
@@ -198,6 +235,7 @@ export const useStore = create<StoreState>()(
 
       /* ── Notes ─────────────────────────────────────────────────────── */
       addNote: (input) => {
+        requireProject(get(), input.projectId)
         const ts = now()
         const note: Note = {
           id: uid('note'),
@@ -219,6 +257,7 @@ export const useStore = create<StoreState>()(
 
       /* ── Snippets ──────────────────────────────────────────────────── */
       addSnippet: (input) => {
+        requireOptionalProject(get(), input.projectId ?? null)
         const ts = now()
         const snippet: Snippet = {
           id: uid('snip'),
@@ -236,15 +275,19 @@ export const useStore = create<StoreState>()(
         return snippet
       },
       updateSnippet: (id, patch) =>
-        set((s) => ({
-          snippets: s.snippets.map((sn) =>
-            sn.id === id ? { ...sn, ...patch, updatedAt: now() } : sn,
-          ),
-        })),
+        set((s) => {
+          if ('projectId' in patch) requireOptionalProject(s, patch.projectId ?? null)
+          return {
+            snippets: s.snippets.map((sn) =>
+              sn.id === id ? { ...sn, ...patch, updatedAt: now() } : sn,
+            ),
+          }
+        }),
       deleteSnippet: (id) => set((s) => ({ snippets: s.snippets.filter((sn) => sn.id !== id) })),
 
       /* ── Commands ──────────────────────────────────────────────────── */
       addCommand: (input) => {
+        requireOptionalProject(get(), input.projectId ?? null)
         const ts = now()
         const command: Command = {
           id: uid('cmd'),
@@ -261,13 +304,19 @@ export const useStore = create<StoreState>()(
         return command
       },
       updateCommand: (id, patch) =>
-        set((s) => ({
-          commands: s.commands.map((c) => (c.id === id ? { ...c, ...patch, updatedAt: now() } : c)),
-        })),
+        set((s) => {
+          if ('projectId' in patch) requireOptionalProject(s, patch.projectId ?? null)
+          return {
+            commands: s.commands.map((c) =>
+              c.id === id ? { ...c, ...patch, updatedAt: now() } : c,
+            ),
+          }
+        }),
       deleteCommand: (id) => set((s) => ({ commands: s.commands.filter((c) => c.id !== id) })),
 
       /* ── Links ─────────────────────────────────────────────────────── */
       addLink: (input) => {
+        requireProject(get(), input.projectId)
         const ts = now()
         const link: ProjectLink = {
           id: uid('link'),
@@ -282,13 +331,17 @@ export const useStore = create<StoreState>()(
         return link
       },
       updateLink: (id, patch) =>
-        set((s) => ({
-          links: s.links.map((l) => (l.id === id ? { ...l, ...patch, updatedAt: now() } : l)),
-        })),
+        set((s) => {
+          if (patch.projectId) requireProject(s, patch.projectId)
+          return {
+            links: s.links.map((l) => (l.id === id ? { ...l, ...patch, updatedAt: now() } : l)),
+          }
+        }),
       deleteLink: (id) => set((s) => ({ links: s.links.filter((l) => l.id !== id) })),
 
       /* ── Resources ─────────────────────────────────────────────────── */
       addResource: (input) => {
+        requireProject(get(), input.projectId)
         const ts = now()
         const resource: Resource = {
           id: uid('res'),
@@ -303,11 +356,14 @@ export const useStore = create<StoreState>()(
         return resource
       },
       updateResource: (id, patch) =>
-        set((s) => ({
-          resources: s.resources.map((r) =>
-            r.id === id ? { ...r, ...patch, updatedAt: now() } : r,
-          ),
-        })),
+        set((s) => {
+          if (patch.projectId) requireProject(s, patch.projectId)
+          return {
+            resources: s.resources.map((r) =>
+              r.id === id ? { ...r, ...patch, updatedAt: now() } : r,
+            ),
+          }
+        }),
       deleteResource: (id) => set((s) => ({ resources: s.resources.filter((r) => r.id !== id) })),
 
       /* ── Settings ──────────────────────────────────────────────────── */
@@ -329,38 +385,41 @@ export const useStore = create<StoreState>()(
           resources: s.resources,
         }
       },
-      importBundle: (bundle, mode) =>
+      importBundle: (bundle, mode) => {
+        let result: ImportResult = { repaired: [] }
         set((s) => {
-          const incoming: DataState = {
-            projects: bundle.projects ?? [],
-            tasks: bundle.tasks ?? [],
-            notes: bundle.notes ?? [],
-            snippets: bundle.snippets ?? [],
-            commands: bundle.commands ?? [],
-            links: bundle.links ?? [],
-            resources: bundle.resources ?? [],
-          }
           if (mode === 'replace') {
-            return { ...incoming, settings: bundle.settings ?? s.settings }
+            const normalized = normalizeBundle(bundle, {
+              mode: 'strict',
+              fallbackSettings: DEFAULT_SETTINGS,
+            })
+            const { projects, tasks, notes, snippets, commands, links, resources, settings } =
+              normalized.bundle
+            result = { repaired: normalized.repaired }
+            return { projects, tasks, notes, snippets, commands, links, resources, settings }
           }
-          // Merge by id, preferring incoming records.
+
           const mergeById = <T extends { id: string }>(a: T[], b: T[]) => {
             const map = new Map(a.map((x) => [x.id, x]))
             for (const x of b) map.set(x.id, x)
             return [...map.values()]
           }
-          return {
-            projects: mergeById(s.projects, incoming.projects),
-            tasks: mergeById(s.tasks, incoming.tasks),
-            notes: mergeById(s.notes, incoming.notes),
-            snippets: mergeById(s.snippets, incoming.snippets),
-            commands: mergeById(s.commands, incoming.commands),
-            links: mergeById(s.links, incoming.links),
-            resources: mergeById(s.resources, incoming.resources),
+          const merged = {
+            projects: mergeById(s.projects, bundle.projects),
+            tasks: mergeById(s.tasks, bundle.tasks),
+            notes: mergeById(s.notes, bundle.notes),
+            snippets: mergeById(s.snippets, bundle.snippets),
+            commands: mergeById(s.commands, bundle.commands),
+            links: mergeById(s.links, bundle.links),
+            resources: mergeById(s.resources, bundle.resources),
           }
-        }),
+          assertDataIntegrity(merged)
+          return { ...normalizeTaskOrders(merged) }
+        })
+        return result
+      },
       resetAll: () => set({ ...emptyData() }),
-      loadSeed: () => set({ ...createSeedData() }),
+      loadSeed: () => set({ ...normalizeTaskOrders(createSeedData()) }),
     }),
     {
       name: STORAGE_KEY,
@@ -375,7 +434,7 @@ export const useStore = create<StoreState>()(
         resources: s.resources,
         settings: s.settings,
       }),
-      migrate: (persisted) => persisted as StoreState,
+      migrate: (persisted) => normalizePersistedState(persisted, DEFAULT_SETTINGS),
     },
   ),
 )

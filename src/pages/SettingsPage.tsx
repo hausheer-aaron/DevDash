@@ -41,7 +41,7 @@ export function SettingsPage() {
   const confirm = useConfirm()
   const toast = useToast()
   const fileRef = useRef<HTMLInputElement>(null)
-  const [pending, setPending] = useState<Partial<ExportBundle> | null>(null)
+  const [pending, setPending] = useState<ExportBundle | null>(null)
 
   const onExport = () => {
     const stamp = new Date().toISOString().slice(0, 10)
@@ -62,9 +62,18 @@ export function SettingsPage() {
 
   const doImport = (mode: 'merge' | 'replace') => {
     if (!pending) return
-    importBundle(pending, mode)
-    setPending(null)
-    toast.success(mode === 'replace' ? 'Data replaced' : 'Data merged')
+    try {
+      if (mode === 'replace') {
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+        downloadJson(`devdash-backup-before-import-${stamp}.json`, exportBundle())
+      }
+      const result = importBundle(pending, mode)
+      setPending(null)
+      const repaired = result.repaired.length ? `${result.repaired.length} repairs applied.` : undefined
+      toast.success(mode === 'replace' ? 'Data replaced' : 'Data merged', repaired)
+    } catch (e) {
+      toast.error('Import failed', e instanceof Error ? e.message : 'Unknown error')
+    }
   }
 
   const onReset = async () => {
