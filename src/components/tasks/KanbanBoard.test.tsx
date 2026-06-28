@@ -4,6 +4,7 @@ import { KanbanBoard } from '@/components/tasks/KanbanBoard'
 import { ConfirmProvider } from '@/components/ui/Confirm'
 import { DEFAULT_SETTINGS, useStore } from '@/store/store'
 import { dataState } from '@/test/factories'
+import { createDefaultSyncState } from '@/sync/queue'
 
 function renderBoard() {
   return render(
@@ -18,6 +19,8 @@ describe('KanbanBoard', () => {
     useStore.setState({
       ...dataState(),
       settings: { ...DEFAULT_SETTINGS, showCompletedTasks: false },
+      sync: createDefaultSyncState(),
+      lastRepositoryError: null,
     })
   })
 

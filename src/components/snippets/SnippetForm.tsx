@@ -43,7 +43,7 @@ export function SnippetForm({ snippet, defaultProjectId = null, open, onClose }:
     setError('')
   }
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) return setError('A title is required.')
     if (!code.trim()) return setError('The snippet is empty.')
@@ -55,8 +55,8 @@ export function SnippetForm({ snippet, defaultProjectId = null, open, onClose }:
       tags: parseTags(tags),
       projectId,
     }
-    if (editing && snippet) updateSnippet(snippet.id, payload)
-    else addSnippet(payload)
+    if (editing && snippet) await updateSnippet(snippet.id, payload)
+    else await addSnippet(payload)
     onClose()
   }
 

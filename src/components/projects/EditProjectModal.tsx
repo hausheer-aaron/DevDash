@@ -21,8 +21,8 @@ export function EditProjectModal({ project, open, onClose }: EditProjectModalPro
           initial={project}
           submitLabel="Save changes"
           onCancel={onClose}
-          onSubmit={(values) => {
-            updateProject(project.id, values)
+          onSubmit={async (values) => {
+            await updateProject(project.id, values)
             onClose()
             toast.success('Project updated')
           }}

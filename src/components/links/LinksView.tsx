@@ -205,13 +205,13 @@ function LinkForm({
     setError('')
   }
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!label.trim()) return setError('A label is required.')
     if (!url.trim()) return setError('A URL is required.')
     const normalized = /^https?:\/\//i.test(url.trim()) ? url.trim() : `https://${url.trim()}`
-    if (editing && link) updateLink(link.id, { label: label.trim(), url: normalized, category })
-    else addLink({ projectId, label: label.trim(), url: normalized, category })
+    if (editing && link) await updateLink(link.id, { label: label.trim(), url: normalized, category })
+    else await addLink({ projectId, label: label.trim(), url: normalized, category })
     onClose()
   }
 

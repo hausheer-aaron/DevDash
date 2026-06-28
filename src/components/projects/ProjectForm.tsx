@@ -27,7 +27,7 @@ export interface ProjectFormValues {
 
 interface ProjectFormProps {
   initial?: Partial<Project>
-  onSubmit: (values: ProjectFormValues) => void
+  onSubmit: (values: ProjectFormValues) => void | Promise<void>
   onCancel: () => void
   submitLabel?: string
 }
@@ -47,13 +47,13 @@ export function ProjectForm({ initial, onSubmit, onCancel, submitLabel = 'Create
 
   const effectiveKey = keyTouched ? key : deriveKey(name)
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) {
       setError('A project name is required.')
       return
     }
-    onSubmit({
+    await onSubmit({
       name: name.trim(),
       key: (effectiveKey || deriveKey(name)).toUpperCase().slice(0, 4),
       description: description.trim(),

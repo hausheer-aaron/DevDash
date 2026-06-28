@@ -1,9 +1,10 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NotesView } from '@/components/notes/NotesView'
 import { ConfirmProvider } from '@/components/ui/Confirm'
 import { DEFAULT_SETTINGS, useStore } from '@/store/store'
 import { dataState, t } from '@/test/factories'
+import { createDefaultSyncState } from '@/sync/queue'
 
 function renderNotes() {
   return render(
@@ -23,6 +24,8 @@ function resetNotes() {
       ],
     }),
     settings: DEFAULT_SETTINGS,
+    sync: createDefaultSyncState(),
+    lastRepositoryError: null,
   })
 }
 
@@ -31,7 +34,7 @@ describe('NotesView autosave', () => {
     resetNotes()
   })
 
-  it('does not update the store on every keystroke and saves after the debounce', () => {
+  it('does not update the store on every keystroke and saves after the debounce', async () => {
     vi.useFakeTimers()
     renderNotes()
     const editor = screen.getByPlaceholderText('Start writing in Markdown…')
@@ -52,21 +55,26 @@ describe('NotesView autosave', () => {
     act(() => {
       vi.advanceTimersByTime(1)
     })
+    await act(async () => {
+      await Promise.resolve()
+    })
     expect(useStore.getState().notes.find((note) => note.id === 'note_2')?.content).toBe(
       'Changed draft',
     )
   })
 
-  it('flushes pending changes when switching notes', () => {
+  it('flushes pending changes when switching notes', async () => {
     renderNotes()
     const editor = screen.getByPlaceholderText('Start writing in Markdown…')
 
     fireEvent.change(editor, { target: { value: 'Flush on switch' } })
     fireEvent.click(screen.getByRole('button', { name: /First note/ }))
 
-    expect(useStore.getState().notes.find((note) => note.id === 'note_2')?.content).toBe(
-      'Flush on switch',
-    )
-    expect(screen.getByPlaceholderText('Start writing in Markdown…')).toHaveValue('First content')
+    await waitFor(() => {
+      expect(useStore.getState().notes.find((note) => note.id === 'note_2')?.content).toBe(
+        'Flush on switch',
+      )
+      expect(screen.getByPlaceholderText('Start writing in Markdown…')).toHaveValue('First content')
+    })
   })
 })

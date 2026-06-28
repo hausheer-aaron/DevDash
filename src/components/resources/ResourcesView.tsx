@@ -166,7 +166,7 @@ function ResourceForm({
     setError('')
   }
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) return setError('A title is required.')
     const normalized = url.trim()
@@ -175,8 +175,8 @@ function ResourceForm({
         : `https://${url.trim()}`
       : ''
     if (editing && resource)
-      updateResource(resource.id, { title: title.trim(), url: normalized, notes })
-    else addResource({ projectId, title: title.trim(), url: normalized, notes })
+      await updateResource(resource.id, { title: title.trim(), url: normalized, notes })
+    else await addResource({ projectId, title: title.trim(), url: normalized, notes })
     onClose()
   }
 

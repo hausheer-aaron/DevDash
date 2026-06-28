@@ -8,13 +8,19 @@ import {
   Database,
   Sparkles,
   Github,
+  User,
+  LogIn,
+  LogOut,
+  UserPlus,
 } from 'lucide-react'
 import type { ExportBundle, ThemeMode } from '@/types'
 import { useStore } from '@/store/store'
+import { useAuthStore } from '@/store/auth'
 import { useConfirm } from '@/components/ui/Confirm'
 import { useToast } from '@/components/ui/Toast'
 import { PageContainer, PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
 import { Switch } from '@/components/ui/Switch'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Modal } from '@/components/ui/Modal'
@@ -38,10 +44,26 @@ export function SettingsPage() {
     links: s.links.length,
     resources: s.resources.length,
   }))
+  const auth = useAuthStore((s) => ({
+    mode: s.mode,
+    configured: s.configured,
+    loading: s.loading,
+    userEmail: s.userEmail,
+    notice: s.notice,
+    error: s.error,
+    signIn: s.signIn,
+    signUp: s.signUp,
+    signOut: s.signOut,
+  }))
   const confirm = useConfirm()
   const toast = useToast()
   const fileRef = useRef<HTMLInputElement>(null)
   const [pending, setPending] = useState<ExportBundle | null>(null)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [authMode, setAuthMode] = useState<'signIn' | 'signUp'>('signIn')
+  const [formError, setFormError] = useState<string | null>(null)
 
   const onExport = () => {
     const stamp = new Date().toISOString().slice(0, 10)
@@ -60,14 +82,14 @@ export function SettingsPage() {
     if (fileRef.current) fileRef.current.value = ''
   }
 
-  const doImport = (mode: 'merge' | 'replace') => {
+  const doImport = async (mode: 'merge' | 'replace') => {
     if (!pending) return
     try {
       if (mode === 'replace') {
         const stamp = new Date().toISOString().replace(/[:.]/g, '-')
         downloadJson(`devdash-backup-before-import-${stamp}.json`, exportBundle())
       }
-      const result = importBundle(pending, mode)
+      const result = await importBundle(pending, mode)
       setPending(null)
       const repaired = result.repaired.length ? `${result.repaired.length} repairs applied.` : undefined
       toast.success(mode === 'replace' ? 'Data replaced' : 'Data merged', repaired)
@@ -85,7 +107,7 @@ export function SettingsPage() {
       destructive: true,
     })
     if (ok) {
-      resetAll()
+      await resetAll()
       toast.success('All data erased')
     }
   }
@@ -98,10 +120,55 @@ export function SettingsPage() {
       destructive: true,
     })
     if (ok) {
-      loadSeed()
+      await loadSeed()
       toast.success('Sample data loaded')
     }
   }
+
+  const validateAuthForm = (
+    emailValue: string,
+    passwordValue: string,
+    confirmPasswordValue: string,
+    mode: 'signIn' | 'signUp',
+  ) => {
+    const normalizedEmail = emailValue.trim().toLowerCase()
+    if (!normalizedEmail || !normalizedEmail.includes('@')) return 'Enter a valid email address.'
+    if (passwordValue.length < 6) return 'Password must be at least 6 characters.'
+    if (mode === 'signUp' && passwordValue !== confirmPasswordValue) return 'Passwords do not match.'
+    return null
+  }
+
+  const onSubmitAuth = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const validationError = validateAuthForm(email, password, confirmPassword, authMode)
+    if (validationError) {
+      setFormError(validationError)
+      return
+    }
+    try {
+      setFormError(null)
+      if (authMode === 'signUp') {
+        await auth.signUp(email, password)
+        toast.success('Account created')
+      } else {
+        await auth.signIn(email, password)
+        toast.success('Signed in')
+      }
+    } catch (error) {
+      toast.error('Sign in failed', error instanceof Error ? error.message : 'Unknown error')
+    }
+  }
+
+  const onSignOut = async () => {
+    try {
+      await auth.signOut()
+      toast.success('Signed out')
+    } catch (error) {
+      toast.error('Sign out failed', error instanceof Error ? error.message : 'Unknown error')
+    }
+  }
+
+  const authButtonDisabled = auth.loading
 
   return (
     <PageContainer className="max-w-3xl">
@@ -168,6 +235,95 @@ export function SettingsPage() {
               aria-label="Show completed tasks"
             />
           </SettingRow>
+        </Section>
+
+        {/* Account */}
+        <Section
+          icon={User}
+          title="Account"
+          description={auth.configured ? 'Supabase authentication.' : 'Local-only mode.'}
+        >
+          <div className="rounded-xl border border-border bg-surface/40 p-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-medium text-fg">
+                  {auth.mode === 'signed_in'
+                    ? auth.userEmail ?? 'Signed in'
+                    : auth.configured
+                      ? 'Not signed in'
+                      : 'Local-only mode'}
+                </p>
+                <p className="mt-0.5 text-xs text-faint">
+                  {auth.mode === 'signed_in'
+                    ? 'Cloud account connected. Project data still stays local for now.'
+                    : auth.configured
+                      ? 'Sign in or create an account with email and password. Project data stays local for now.'
+                      : 'Supabase is not configured. DevDash remains fully local.'}
+                </p>
+              </div>
+              {auth.mode === 'signed_in' && (
+                <Button variant="secondary" onClick={onSignOut} disabled={auth.loading}>
+                  <LogOut className="h-4 w-4" /> Sign out
+                </Button>
+              )}
+            </div>
+
+            {auth.configured && auth.mode !== 'signed_in' && (
+              <div className="mt-4 space-y-3">
+                <SegmentedControl
+                  value={authMode}
+                  onChange={(v) => {
+                    setAuthMode(v as 'signIn' | 'signUp')
+                    setFormError(null)
+                  }}
+                  options={[
+                    { value: 'signIn', label: 'Sign in' },
+                    { value: 'signUp', label: 'Create account' },
+                  ]}
+                />
+                <form onSubmit={onSubmitAuth} className="space-y-2">
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    placeholder="you@example.com"
+                    className="min-h-10 w-full rounded-lg border border-border bg-bg px-3 text-sm text-fg outline-none transition placeholder:text-faint focus:border-accent"
+                  />
+                  <Input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    placeholder="Password"
+                    className="min-h-10 w-full rounded-lg border border-border bg-bg px-3 text-sm text-fg outline-none transition placeholder:text-faint focus:border-accent"
+                  />
+                  {authMode === 'signUp' && (
+                    <Input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      required
+                      placeholder="Confirm password"
+                      className="min-h-10 w-full rounded-lg border border-border bg-bg px-3 text-sm text-fg outline-none transition placeholder:text-faint focus:border-accent"
+                    />
+                  )}
+                  <Button variant="primary" disabled={authButtonDisabled}>
+                    {authMode === 'signUp' ? (
+                      <UserPlus className="h-4 w-4" />
+                    ) : (
+                      <LogIn className="h-4 w-4" />
+                    )}
+                    {authMode === 'signUp' ? 'Create account' : 'Sign in'}
+                  </Button>
+                </form>
+              </div>
+            )}
+
+            {auth.notice && <p className="mt-3 text-xs text-muted">{auth.notice}</p>}
+            {auth.error && <p className="mt-3 text-xs text-danger">{auth.error}</p>}
+            {formError && <p className="mt-3 text-xs text-danger">{formError}</p>}
+          </div>
         </Section>
 
         {/* Data */}

@@ -38,7 +38,7 @@ export function CommandForm({ command, defaultProjectId = null, open, onClose }:
     setError('')
   }
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) return setError('A title is required.')
     if (!cmd.trim()) return setError('The command is empty.')
@@ -49,8 +49,8 @@ export function CommandForm({ command, defaultProjectId = null, open, onClose }:
       tags: parseTags(tags),
       projectId,
     }
-    if (editing && command) updateCommand(command.id, payload)
-    else addCommand(payload)
+    if (editing && command) await updateCommand(command.id, payload)
+    else await addCommand(payload)
     onClose()
   }
 

@@ -1,7 +1,9 @@
+import { useEffect } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { X } from 'lucide-react'
 import { useUI } from '@/store/ui'
+import { useAuthStore } from '@/store/auth'
 import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts'
 import { ConfirmProvider } from '@/components/ui/Confirm'
 import { Sidebar } from './Sidebar'
@@ -12,9 +14,14 @@ import { NewProjectModal } from '@/components/projects/NewProjectModal'
 
 export function AppShell() {
   useGlobalShortcuts()
+  const initAuth = useAuthStore((s) => s.initAuth)
   const mobileNavOpen = useUI((s) => s.mobileNavOpen)
   const setMobileNav = useUI((s) => s.setMobileNav)
   const location = useLocation()
+
+  useEffect(() => {
+    void initAuth()
+  }, [initAuth])
 
   return (
     <ConfirmProvider>

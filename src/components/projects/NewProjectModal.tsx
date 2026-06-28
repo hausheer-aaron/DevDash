@@ -23,8 +23,8 @@ export function NewProjectModal() {
     >
       <ProjectForm
         onCancel={close}
-        onSubmit={(values) => {
-          const project = addProject(values)
+        onSubmit={async (values) => {
+          const project = await addProject(values)
           close()
           toast.success('Project created', project.name)
           navigate(`/projects/${project.id}`)

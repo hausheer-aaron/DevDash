@@ -42,7 +42,7 @@ export function TaskForm({ projectId, task, defaultStatus = 'todo', open, onClos
     setError('')
   }
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) {
       setError('A task title is required.')
@@ -56,8 +56,8 @@ export function TaskForm({ projectId, task, defaultStatus = 'todo', open, onClos
       dueDate: fromDateInput(due),
       tags: parseTags(tags),
     }
-    if (editing && task) updateTask(task.id, payload)
-    else addTask({ projectId, ...payload })
+    if (editing && task) await updateTask(task.id, payload)
+    else await addTask({ projectId, ...payload })
     onClose()
   }
 

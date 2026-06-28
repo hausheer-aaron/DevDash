@@ -59,9 +59,9 @@ export function NotesView({ projectId }: { projectId: string }) {
   const selected = projectNotes.find((n) => n.id === selectedId) ?? null
 
   // Commit any pending edit immediately (on note switch and on unmount).
-  const flush = useCallback(() => {
+  const flush = useCallback(async () => {
     if (dirtyRef.current && selectedIdRef.current) {
-      updateNote(selectedIdRef.current, {
+      await updateNote(selectedIdRef.current, {
         title: draftRef.current.title,
         content: draftRef.current.content,
       })
@@ -94,24 +94,27 @@ export function NotesView({ projectId }: { projectId: string }) {
   useEffect(() => {
     if (!dirty || !selectedId) return
     const id = setTimeout(() => {
-      updateNote(selectedId, { title: draft.title, content: draft.content })
-      setDirty(false)
+      void updateNote(selectedId, { title: draft.title, content: draft.content }).then(() => {
+        setDirty(false)
+      })
     }, AUTOSAVE_MS)
     return () => clearTimeout(id)
   }, [dirty, draft, selectedId, updateNote])
 
   // Flush on unmount so in-flight edits are never lost.
-  useEffect(() => () => flush(), [flush])
+  useEffect(() => () => {
+    void flush()
+  }, [flush])
 
-  const selectNote = (id: string) => {
+  const selectNote = async (id: string) => {
     if (id === selectedId) return
-    flush()
+    await flush()
     setSelectedId(id)
   }
 
-  const createNote = () => {
-    flush()
-    const note = addNote({ projectId, title: 'Untitled note', content: '' })
+  const createNote = async () => {
+    await flush()
+    const note = await addNote({ projectId, title: 'Untitled note', content: '' })
     setSelectedId(note.id)
     setMode('write')
   }
